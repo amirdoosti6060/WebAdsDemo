@@ -4,75 +4,211 @@
     <meta charset="utf-8" />
     <title>Web ADS Demo application</title>
     <style>
+        html, body {
+            margin: 1px;
+        }
+        h2 {
+            margin: 0;
+            padding: 0;
+        }
+        .main_window {
+            border: 1px solid black;
+            margin: 0px;
+            padding: 4px;
+        }
+        .title {
+            border: 1px solid lightblue;
+            background-color: lightblue;
+            margin: 0 0 8px 0;
+        }
+        .message_box {
+            width: 100%;
+            height: 150px;
+            box-sizing: border-box;
+            resize: none;
+            white-space: pre;
+            overflow-wrap: normal;
+            overflow-x: scroll;
+            overflow-y: auto;
+        }
+        .status_box {
+            border: 1px solid lightgray;
+            display: inline-block;
+            text-align: center;
+            width: 50px;
+        }
     </style>
 </head>
 <body>
-    <h1>Web live ADS demo</h1>
-    <span>Counter: <input type="number" id="counter" /></span>
-    <input type="button" value="Read" onclick="onRead()" /> &nbsp;
-    <input type="button" value="Write" onclick="onWrite()" />
-    <br />
-    <br />
+    <div class="main_window">
+        <div class="title">
+            <h2>Web live ADS demo</h2>
+        </div>
+        <span>Base address: <input id="baseAddress" value="localhost:5000/" />  <input type="button" value="Set" onclick="onSetBaseAddress()" /></span><br /><br />
+        <span>Counter: <input type="number" id="counter" /></span>
+        <input type="button" value="Read" onclick="onRead()" /> &nbsp;
+        <input type="button" value="Write" onclick="onWrite()" />
+        <br />
+        <br />
 
-    <span>Start/Stop <input id="chkStartStop" type="checkbox" value="1" onchange="onStartStop()" /> </span>
-    <br />
-    <p>Status: <span id="lblStatus">OFF</span> </p>
+        <span>Start/Stop <input id="chkStartStop" type="checkbox" value="1" onchange="onStartStop()" /> </span>
+        <br />
+        <p>Status: <span id="lblStatus" class="status_box">OFF</span> </p>
 
-    <br />
-    <p id="messageBox"></p>
+        <br />
+        <span>Message History</span>
+        <select size="5" id="messageBox" class="message_box">
+        </select>
+    </div>
 
     <script>
-        const wsUri = "ws://localhost:5220/"
-        const webSocket = new WebSocket(wsUri);
+        var baseUrl = document.getElementById("baseAddress").value;
+        var wsUri = "ws://" + baseUrl;
+        var apiUri = "http://" + baseUrl + "api/swg/";
+        var webSocket;
 
-        webSocket.onopen = (e) => {
-            writeToScreen("CONNECTED");
-            doSend("WebSocket rocks");
+        var rData = {
+            isConnected: false,
+            buttonState: false,
+            bStatus: false
         };
+        var updateStartStopButtonWithoutRunHandler = false;
 
-        webSocket.onclose = (e) => {
-            writeToScreen("DISCONNECTED");
-        };
+        onSetBaseAddress();
 
-        webSocket.onmessage = (e) => {
-            writeToScreen(`RESPONSE: ${e.data}`);
-        };
+        function updateButtonState(state) {
+            updateStartStopButtonWithoutRunHandler = true;
+            var checkBox = document.getElementById("chkStartStop");
+            checkBox.checked = state;
+        }
 
-        webSocket.onerror = (e) => {
-            writeToScreen(`<span class="error">ERROR:</span> ${e.data}`);
-        };
-
-        function writeToScreen(message) {
+        function addToMessageHistory(message) {
             console.log(message);
-            var element = document.getElementById("messageBox");
-            element.innerText = message;
+            var list = document.getElementById("messageBox");
+            var opt = document.createElement('option');
+            opt.innerHTML = message;
+            list.appendChild(opt);
+            opt.selected = true;
         }
 
         function doSend(message) {
-            writeToScreen(`SENT: ${message}`);
+            addToMessageHistory(`SENT: ${message}`);
             webSocket.send(message);
         }
 
-        function onRead() {
+        async function onRead() {
+            fetch(apiUri + "readcounter")
+                .then(res => {
+                    if (res.ok) {
+                        res.text().then(text => {
+                            var inpCounter = document.getElementById("counter");
+                            inpCounter.value = text;
+                            addToMessageHistory(`Reply: ${text}`)
+                        });
+
+                    }
+                    else {
+                        res.text().then(text => addToMessageHistory(`ERROR: ${res.status} -> ${text}`));
+                    }
+
+                })
+                .catch(err => {
+                    addToMessageHistory(err);
+                });
         }
 
+        var num = 0;
         function onWrite() {
-            doSend("From Client");
+            var cnt = document.getElementById("counter").value;
+            
+            fetch(apiUri + "writecounter", {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: cnt
+            })
+                .then(res => {
+                    if (res.ok) {
+                        addToMessageHistory(`Value is written successfully.`)
+                    }
+                    else {
+                        
+                        res.text().then(text => { alert(text); addToMessageHistory(`ERROR: ${res.status} -> ${text}`) });
+                    }
+                })
+                .catch(err => {
+                    addToMessageHistory(err);
+                });
         }
 
         function onStartStop() {
-            var checkBox = document.getElementById("chkStartStop");
-            var checked = checkBox.checked;
+            if (updateStartStopButtonWithoutRunHandler) {
+                updateStartStopButtonWithoutRunHandler = false;
+                return;
+            }
 
-            showStatus(checked);
+            var checkBox = document.getElementById("chkStartStop");
+            fetch(apiUri + "startstop", {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: checkBox.checked
+            })
+                .then(res => {
+                    if (res.ok) {
+                        addToMessageHistory(`start/stop set successfully.`)
+                    }
+                    else {
+
+                        res.text().then(text => { alert(text); addToMessageHistory(`ERROR: ${res.status} -> ${text}`) });
+                    }
+                })
+                .catch(err => {
+                    addToMessageHistory(err);
+                });
+        }
+
+        function onSetBaseAddress() {
+            baseUrl = document.getElementById("baseAddress").value;
+            wsUri = "ws://" + baseUrl;
+            apiUri = "http://" + baseUrl + "api/swg/";
+            webSocket = new WebSocket(wsUri);
+            var webSocket = new WebSocket(wsUri);
+
+            webSocket.onopen = (e) => {
+                addToMessageHistory("CONNECTED");
+            };
+
+            webSocket.onclose = (e) => {
+                addToMessageHistory("DISCONNECTED");
+            };
+
+            webSocket.onmessage = (e) => {
+                rData = JSON.parse(e.data);
+                updateButtonState(rData.buttonState);
+                showStatus(rData.bStatus);
+
+                addToMessageHistory(`RESPONSE: ${e.data}`);
+            };
+
+            webSocket.onerror = (e) => {
+                addToMessageHistory(`ERROR: ${e.data}`);
+            };
+
         }
 
         function showStatus(status) {
             var element = document.getElementById("lblStatus");
-            if (status)
+            if (status) {
                 element.innerText = "ON";
-            else
+                element.style.backgroundColor = "Yellow";
+            }
+            else {
                 element.innerText = "OFF";
+                element.style.backgroundColor = "";
+            }
         }
     </script>
 </body>

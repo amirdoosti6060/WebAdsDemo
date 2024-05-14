@@ -1,5 +1,6 @@
 ﻿using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
+using System.Diagnostics.Metrics;
 using System.Net;
 using System.Net.WebSockets;
 using TwinCAT.Ads;
@@ -20,8 +21,6 @@ namespace WebAdsDemo.Controllers
         {
             _logger = logger;
             _adsService = adsService;
-
-            //_ws = new WebSocket();
         }
 
         [HttpGet("readcounter")]
@@ -42,12 +41,12 @@ namespace WebAdsDemo.Controllers
         }
 
         [HttpPost("writecounter")]
-        public ActionResult WriteCounter(uint value)
+        public ActionResult WriteCounter([FromBody] uint counter)
         {
             try
             {
-                _adsService.WriteValue<uint>("MAIN.nCounter", value);
-
+                _adsService.WriteValue<uint>("MAIN.nCounter", counter);
+                _logger.LogInformation($"{counter} is written!");
                 return Ok();
 
             }
@@ -59,11 +58,12 @@ namespace WebAdsDemo.Controllers
         }
 
         [HttpPost("startstop")]
-        public ActionResult StartStop(bool start)
+        public ActionResult StartStop([FromBody] bool start)
         {
             try
             {
                 _adsService.WriteValue<bool>("MAIN.bStartStop", start);
+                _logger.LogInformation($"{start} is written!");
 
                 return Ok();
 
@@ -74,13 +74,5 @@ namespace WebAdsDemo.Controllers
                 return StatusCode((int)HttpStatusCode.InternalServerError, ex.Message);
             }
         }
-
-        /*
-        [HttpPost]
-        public Task<ActionResult> SubscribeVariable(string variable)
-        {
-
-        }
-        */
     }
 }

@@ -1,4 +1,6 @@
+using Microsoft.Extensions.Logging;
 using WebAdsDemo.Extensions;
+using WebAdsDemo.Middleware;
 using WebAdsDemo.Services;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -23,18 +25,7 @@ app.ConfigErrorHandler();
 app.UseStaticFiles();
 
 app.UseWebSockets();
-app.Use(async (context, next) =>
-{
-    if (context.Request.Path == "/")
-    {
-        var webSocketService = new WebSocketService();
-        await webSocketService.HandleWebSocket(context);
-    }
-    else
-    {
-        await next();
-    }
-});
+app.UseMiddleware<WsAdsMiddleware>();
 
 // Configure the HTTP request pipeline.
 
@@ -48,4 +39,12 @@ app.UseAuthorization();
 
 app.MapControllers();
 
-app.Run();
+try
+{
+    app.Run();
+}
+catch (Exception ex)
+{
+    //Console.WriteLine(ex.Message);
+    Console.WriteLine("Server unable to continue!");
+}
