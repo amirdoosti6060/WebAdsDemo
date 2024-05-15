@@ -68,11 +68,8 @@
         var webSocket;
 
         var rData = {
-            isConnected: false,
-            buttonState: false,
             bStatus: false
         };
-        var updateStartStopButtonWithoutRunHandler = false;
 
         onSetBaseAddress();
 
@@ -119,6 +116,8 @@
 
         var num = 0;
         function onWrite() {
+            //rData.bStatus = !rData.bStatus;
+            //doSend(JSON.stringify(rData));
             var cnt = document.getElementById("counter").value;
             
             fetch(apiUri + "writecounter", {
@@ -143,11 +142,6 @@
         }
 
         function onStartStop() {
-            if (updateStartStopButtonWithoutRunHandler) {
-                updateStartStopButtonWithoutRunHandler = false;
-                return;
-            }
-
             var checkBox = document.getElementById("chkStartStop");
             fetch(apiUri + "startstop", {
                 method: 'POST',
@@ -175,7 +169,6 @@
             wsUri = "ws://" + baseUrl;
             apiUri = "http://" + baseUrl + "api/swg/";
             webSocket = new WebSocket(wsUri);
-            var webSocket = new WebSocket(wsUri);
 
             webSocket.onopen = (e) => {
                 addToMessageHistory("CONNECTED");
@@ -186,11 +179,12 @@
             };
 
             webSocket.onmessage = (e) => {
-                rData = JSON.parse(e.data);
-                updateButtonState(rData.buttonState);
-                showStatus(rData.bStatus);
+                //addToMessageHistory(`RESPONSE: ${e.data}`);
 
-                addToMessageHistory(`RESPONSE: ${e.data}`);
+                var data = JSON.parse(e.data);
+                rData.bStatus = data.bStatus
+                
+                showStatus(rData.bStatus);
             };
 
             webSocket.onerror = (e) => {

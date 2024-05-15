@@ -3,6 +3,7 @@ using System.Collections.Concurrent;
 using System.ComponentModel;
 using System.Net.WebSockets;
 using System.Text;
+using System.Text.Json;
 using TwinCAT.Ads;
 using WebAdsDemo.Services;
 
@@ -10,13 +11,18 @@ namespace WebAdsDemo.Middleware
 {
     public class WsAdsMiddleware
     {
+        private class AdsState
+        {
+            public bool bStatus { get; set; }
+        };
+
         private readonly RequestDelegate _next;
         private readonly ILogger<WsAdsMiddleware> _logger;
         private readonly IAdsService _adsService;
         private ConcurrentDictionary<string, WebSocket> _clients =
             new ConcurrentDictionary<string, WebSocket>();
-        private readonly EventHandler<AdsNotificationExEventArgs> _adsEventHandler;
-        private bool _adsStatus;
+        private readonly EventHandler<AdsNotificationExEventArgs> _adsPulseEventHandler;
+        private AdsState _adsState = new AdsState();
         private static object _lock = new object();
 
         public WsAdsMiddleware(RequestDelegate next, ILogger<WsAdsMiddleware> logger, IAdsService adsService)
@@ -25,16 +31,20 @@ namespace WebAdsDemo.Middleware
             _logger = logger;
             _adsService = adsService;
 
-            _adsEventHandler = new EventHandler<AdsNotificationExEventArgs>(AdsNotificationHandler);
-            _adsService.SetNotification<bool>("MAIN.bStatus", _adsEventHandler);
+            _adsPulseEventHandler = new EventHandler<AdsNotificationExEventArgs>(AdsPulseNotificationHandler);
+            _adsService.SetNotification<bool>("MAIN.bPulse", _adsPulseEventHandler);
         }
 
-        private void AdsNotificationHandler(object? sender, AdsNotificationExEventArgs e)
+        private async void AdsPulseNotificationHandler(object? sender, AdsNotificationExEventArgs e)
         {
+            var message = "";
             lock(_lock)
             {
-                _adsStatus = (bool) e.Value;
+                _adsState.bStatus = (bool) e.Value;
+                _logger.LogInformation($"MAIN.bPulse = {_adsState.bStatus}");
+                message = JsonSerializer.Serialize<AdsState>(_adsState);
             }
+            await BroadcastMessage(message);
         }
 
         public async Task Invoke(HttpContext context)
@@ -95,8 +105,21 @@ namespace WebAdsDemo.Middleware
                     {
                         string message = Encoding.UTF8.GetString(buffer, 0, result.Count);
                         _logger.LogInformation($"Received data from {clientId}: {message}.");
-                        // Broadcast message to all connected clients (optional)
-                        await BroadcastMessage(message);
+
+                        try
+                        {
+                            var rcvState = JsonSerializer.Deserialize<AdsState>(message);
+
+                            _adsState.bStatus = rcvState!.bStatus;
+                            message = JsonSerializer.Serialize<AdsState>(_adsState);
+
+                            // Broadcast message to all connected clients (optional)
+                            await BroadcastMessage(message);
+                        }
+                        catch
+                        {
+                            _logger.LogError("Bad request! Input should be a serialized json with specific fields!");
+                        }
                     }
                 }
             }
