@@ -16,8 +16,8 @@ The solution contains a Web API .Net6 project which is written in Visual Studio.
 
 ## How to run
 Open the solution in Visual Studio and publish the project. Then move the published folder to the machine running PLC.  
-Note that before running the project, make sure that PLC is running on AmsId 127.0.0.1.1.1 and port 851  .
+Note that before running the project, make sure that PLC is running on AmsId 127.0.0.1.1.1 and port 851.   
 Run the executable file then (WebAdsDemo.exe).   
-Then open a browser and browse to http://localhost:5000/index.html
+Then open a browser and browse to http://localhost:5000/index.html   
 Also note that you can change the AmsId and port number on appsettings.json if needed.   
 
